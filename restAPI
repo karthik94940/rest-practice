@@ -1,1 +1,207 @@
 
+from django.shortcuts import render
+from rest_framework import generics
+from basic_api.models import *
+from basic_api.serializers import *
+
+
+# Create your views here.
+from rest_framework import viewsets
+from rest_framework.renderers import TemplateHTMLRenderer
+
+
+class CreateGet(generics.ListCreateAPIView):
+    queryset = DRFPost.objects.all()
+    serializer_class = DRFSerializer
+    filter_fields = ('name',)
+
+
+
+class UpdateDeleteGet(generics.RetrieveUpdateDestroyAPIView):
+    queryset = DRFPost.objects.all()
+    serializer_class = DRFSerializer
+
+
+# Function based Api_views
+from basic_api.serializers import *
+from rest_framework.response import Response
+from rest_framework.decorators import api_view
+
+
+# decorater
+@api_view(['GET'])
+def book_details(request):
+    if request.method == 'GET':
+        result = DRFPost.objects.all()
+        serialize = DRFSerializer(result, many=True)
+        return Response(serialize.data)
+
+
+import requests
+
+
+def dispaly_book_details(request):
+    callapi = requests.get('http://192.168.0.200:6576/book_details')
+    print(callapi, "before json")
+    res = callapi.json()
+    print("after json", res)
+    return render(request, "book_detail.html", {'res': res})
+
+
+
+#import
+from rest_framework.views import APIView
+# or APIView
+class CURD(APIView):
+    def get(self, request):
+        result = DRFPost.objects.all()
+        serialize = DRFSerializer(result, many=True)
+        return Response(serialize.data, template_name="list.html")
+
+    def post(self, request):
+        ser = DRFSerializer(data=request.data)
+        if ser.is_valid():
+            ser.save()
+            message = {'message': "Data is saved"}
+        else:
+            message = {"error": ser.errors}
+        return Response(message)
+
+
+class CURDOne(APIView):
+    def get(self, request, pk):
+        try:
+            result = DRFPost.objects.get(id=pk)
+            serialize = DRFSerializer(result)
+            return Response(serialize.data)
+        except DRFPost.DoesNotExist:
+            message = {"message":'invalid value'}
+            return Response(message)
+
+    def put(self, request, pk):
+        try:
+            result = DRFPost.objects.get(id=pk)
+            d1 = request.data
+            serialize = DRFSerializer(result, d1, partial=True)
+            if serialize.is_valid():
+                serialize.save()
+                message = {"message":'product update'}
+            else:
+                message = {"error":serialize.errors}
+            return Response(message)
+        except DRFPost.DoesNotExist:
+            message = {"message": 'invalid value'}
+            return Response(message)
+
+    def delete(self, request, pk):
+        res = DRFPost.objects.filter(id=pk).delete()
+        print(res)
+        if res[0] != 0:
+            message = {"message": "value is deleted"}
+        else:
+            message = {"message": 'invalid value'}
+
+        return Response(message)
+
+
+# class viewset(viewsets.ModelViewSet):
+#     pass
+
+
+# class Pages(generics.CreateAPIView):
+#     # def post(self, request):
+#     #     qs = Pages.objects.all()
+#     #     ps = PagesSerializer(qs, request.data)
+#     #     if ps.is_valid():
+#     #         ps.save()
+#     #         message = {"message":"Pages allocated to the book"}
+#     #     else:
+#     #         message = {'error':ps.errors}
+#     #     return Response(message)
+#
+#     model = Pages.objects.all()
+#     serializer_class = PagesSerializer
+#
+#
+# class PagesList(APIView):
+#     def get(self, request):
+#         qs = Pages.objects.all()
+#         ps = PagesSerializer(qs, many=True)
+#         return Response(ps.data)
+#
+
+class PagesList(viewsets.ModelViewSet):
+    queryset = Pages.objects.all()
+    serializer_class = PagesSerializer
+
+
+class Pages(viewsets.ModelViewSet):
+    queryset = DRFPost.objects.all()
+    serializer_class = DRFSerializer
+    # for x in queryset:
+    #     print(x.name)
+
+
+class LoginPage(APIView):
+    renderer_classes = [TemplateHTMLRenderer]
+    template_name = "login_page.html"
+
+    def get(self, request):
+        return Response()
+
+    def post(self, request):
+        user_name = request.data.get('user_name')
+        password = request.data.get('password')
+        short_name = request.data.get('short_name')
+
+        if user_name == "akkcga" and short_name == 'akk':
+            if password != 's':
+                invalid_credentials = 'increase invalid credentials'
+                s = user_name + password + short_name
+                print(s)
+                return Response({'message': "Invalid Credentials", 's': s})
+            return Response({'message': "Login successful"}, template_name="book_detail.html")
+        else:
+            value = False
+            message = 'Invalid Credentials'
+            context = {'value': value, 'message': message}
+            return Response(context)
+
+
+'''
+    this is for using filter and order using django-filter
+
+'''
+# class DjangoFilter(generics.ListAPIView):
+#     serializer_class = DRFSerializer
+#     queryset = DRFPost.objects.all()
+#     filter_backends = (DjangoFilterBackend, orderingfilter, Searchfilter) # inbuilt django Filter (orderFilter)
+#     filter_fields = ('is_active', 'profile__designation') # (condition, field value)
+#
+#     ordering_fields = ('is_active' , 'username')
+
+    # search_fields = ('ussename', 'first_name')
+    # ordering = ('username',)
+
+    # """or we can work django-filter app"""
+
+
+# this is  for filter without using Djnago-filter App
+class BookList(generics.ListAPIView):
+    serializer_class = DRFSerializer
+    # queryset = DRFPost.objects.all()
+
+    def get_queryset(self):
+        queryset = DRFPost.objects.all()
+        rate = self.request.query_params.get('rating')  # self.request.query_params.get('rating', '')  fetching from url
+        qs_rating = queryset.filter(rating=rate).values('rating')
+        if rate and qs_rating.exists():
+            if rate == qs_rating[0]['rating']:
+                return queryset.filter(rating=rate)
+            else:
+                return queryset.filter(rating=rate)
+        else:
+            return queryset.filter(rating=rate)
+
+def home(request):
+    return render(request, "add_books.html")
